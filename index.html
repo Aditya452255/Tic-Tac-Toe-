@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tic Tac Toe </title>
+  <style>
+    :root{
+      --blue: #4584b6;
+      --yellow: #ffde57;
+      --gray: #343434;
+      --light-gray: #646464;
+      --bg-dark: #0f1113;
+      --card: rgba(0,0,0,0.45);
+      --glass: rgba(255,255,255,0.04);
+      --shadow: 0 8px 30px rgba(0,0,0,0.6);
+      --radius: 16px;
+      --gap: 12px;
+    }
+
+    html,body{
+      height:100%;
+      margin:0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background-color:var(--bg-dark);
+    }
+
+    /* full-page background image (user provided) */
+    body::before{
+      content:'';
+      position:fixed; inset:0; z-index:-2;
+      background-image: url('/mnt/data/Screenshot 2025-11-22 025221.png');
+      background-size: cover;
+      background-position: center;
+      filter: saturate(0.9) brightness(0.35);
+    }
+
+    /* subtle textured overlay */
+    body::after{
+      content:''; position:fixed; inset:0; z-index:-1; background:linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.6));
+    }
+
+    .wrap{
+      min-height:100%; display:flex; align-items:center; justify-content:center; padding:48px;
+    }
+
+    .card{
+      width: min(760px, 96vw);
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding:28px;
+      display:grid; gap:18px; align-items:start; justify-items:center;
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+
+    h1{ margin:0; font-size:20px; color: #fff; letter-spacing:0.2px; }
+    .meta{ color:rgba(255,255,255,0.8); font-size:13px; }
+
+    .board-area{ display:flex; gap:28px; align-items:center; flex-wrap:wrap; justify-content:center; }
+
+    .board{
+      display:grid; grid-template-columns: repeat(3,120px); grid-template-rows: repeat(3,120px); gap:12px;
+      background: var(--glass); padding:18px; border-radius:12px; box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+    }
+
+    .cell{
+      width:120px; height:120px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+      font-size:48px; font-weight:700; user-select:none; cursor:pointer; transition: transform 120ms ease, background 220ms ease, color 220ms ease;
+      background: linear-gradient(180deg, var(--gray), rgba(0,0,0,0.6)); color:var(--blue);
+      box-shadow: inset 0 -3px 8px rgba(0,0,0,0.35);
+    }
+
+    .cell:hover{ transform: translateY(-4px); }
+    .cell.disabled{ cursor:default; opacity:0.9; transform:none; }
+
+    .info{
+      display:flex; flex-direction:column; gap:12px; align-items:center; min-width:220px;
+    }
+
+    .status{ font-size:18px; color: #fff; background: rgba(0,0,0,0.25); padding:10px 14px; border-radius:10px; }
+
+    .controls{ display:flex; gap:10px; }
+    button.btn{ padding:10px 14px; border-radius:10px; border:0; font-weight:600; cursor:pointer; box-shadow: 0 8px 18px rgba(0,0,0,0.45); }
+    .btn.primary{ background: var(--blue); color:white; }
+    .btn.ghost{ background:transparent; color: white; border:1px solid rgba(255,255,255,0.06); }
+
+    .winner{ color: var(--yellow); font-weight:800; }
+
+    /* highlight winning cells */
+    .cell.win{ background: linear-gradient(180deg, #635e37, #494233); color: var(--yellow); transform: scale(1.03); box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
+
+    @media (max-width:640px){
+      .board{ grid-template-columns: repeat(3,84px); grid-template-rows: repeat(3,84px); }
+      .cell{ width:84px; height:84px; font-size:34px; }
+      .card{ padding:18px }
+    }
+
+    footer{ width:100%; text-align:center; color: rgba(255,255,255,0.6); font-size:12px; margin-top:6px }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" role="main">
+      <h1>Tic Tac Toe</h1>
+      <div class="meta">Lets play!</div>
+
+      <div class="board-area">
+        <div id="board" class="board" aria-label="Tic tac toe board"></div>
+
+        <div class="info">
+          <div id="status" class="status">X's turn</div>
+          <div class="controls">
+            <button id="restart" class="btn ghost">Restart</button>
+            <button id="auto" class="btn primary">Auto Play (AI)</button>
+          </div>
+          <div style="font-size:12px;color:rgba(255,255,255,0.6);">Click a cell or use Auto Play to watch the AI</div>
+        </div>
+      </div>
+
+      <footer></footer>
+    </div>
+  </div>
+
+  <script>
+    // Game state
+    const PLAYER_X = 'X', PLAYER_O = 'O';
+    let currPlayer = PLAYER_X;
+    let turns = 0;
+    let gameOver = false;
+    let board = [ ['', '', ''], ['', '', ''], ['', '', ''] ];
+
+    const boardEl = document.getElementById('board');
+    const statusEl = document.getElementById('status');
+    const restartBtn = document.getElementById('restart');
+    const autoBtn = document.getElementById('auto');
+
+    // build cells
+    function buildBoard(){
+      boardEl.innerHTML = '';
+      for(let r=0;r<3;r++){
+        for(let c=0;c<3;c++){
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.dataset.r = r; cell.dataset.c = c;
+          cell.addEventListener('click', onCellClick);
+          boardEl.appendChild(cell);
+        }
+      }
+      updateStatus();
+    }
+
+    function onCellClick(e){
+      if(gameOver) return;
+      const r = +e.currentTarget.dataset.r;
+      const c = +e.currentTarget.dataset.c;
+      if(board[r][c] !== '') return;
+      board[r][c] = currPlayer;
+      e.currentTarget.textContent = currPlayer;
+      e.currentTarget.classList.add('disabled');
+      turns++;
+      if(currPlayer === PLAYER_X) currPlayer = PLAYER_O; else currPlayer = PLAYER_X;
+      updateStatus();
+      checkWinner();
+    }
+
+    function updateStatus(){
+      if(gameOver) return;
+      statusEl.textContent = currPlayer + "'s turn";
+    }
+
+    function checkWinner(){
+      // rows
+      for(let r=0;r<3;r++){
+        if(board[r][0] !== '' && board[r][0] === board[r][1] && board[r][1] === board[r][2]){
+          declareWinner(board[r][0], [{r,c:0},{r,c:1},{r,c:2}]); return;
+        }
+      }
+      // cols
+      for(let c=0;c<3;c++){
+        if(board[0][c] !== '' && board[0][c] === board[1][c] && board[1][c] === board[2][c]){
+          declareWinner(board[0][c], [{r:0,c},{r:1,c},{r:2,c}]); return;
+        }
+      }
+      // diag
+      if(board[0][0] !== '' && board[0][0] === board[1][1] && board[1][1] === board[2][2]){
+        declareWinner(board[0][0], [{r:0,c:0},{r:1,c:1},{r:2,c:2}]); return;
+      }
+      // anti-diag
+      if(board[0][2] !== '' && board[0][2] === board[1][1] && board[1][1] === board[2][0]){
+        declareWinner(board[0][2], [{r:0,c:2},{r:1,c:1},{r:2,c:0}]); return;
+      }
+      // tie
+      if(turns === 9){
+        gameOver = true;
+        statusEl.textContent = 'Tie!';
+        statusEl.classList.remove('winner');
+      }
+    }
+
+    function declareWinner(player, cells){
+      gameOver = true;
+      statusEl.textContent = player + ' is the winner!';
+      statusEl.classList.add('winner');
+      // highlight cells
+      cells.forEach(({r,c})=>{
+        const idx = r*3 + c;
+        const el = boardEl.children[idx];
+        el.classList.add('win');
+      });
+    }
+
+    function newGame(){
+      board = [ ['', '', ''], ['', '', ''], ['', '', ''] ];
+      turns = 0; gameOver = false; currPlayer = PLAYER_X;
+      Array.from(boardEl.children).forEach(el=>{ el.textContent=''; el.classList.remove('disabled','win'); });
+      statusEl.classList.remove('winner');
+      updateStatus();
+    }
+
+    restartBtn.addEventListener('click', newGame);
+
+    // simple AI: pick random free cell (not a smart minimax) — easy to read & play
+    function autoPlay(){
+      if(gameOver) return;
+      const free = [];
+      for(let r=0;r<3;r++) for(let c=0;c<3;c++) if(board[r][c]==='') free.push({r,c});
+      if(free.length===0) return;
+      const pick = free[Math.floor(Math.random()*free.length)];
+      const idx = pick.r*3 + pick.c;
+      board[idxToR(idx)][idxToC(idx)] = currPlayer;
+      const el = boardEl.children[idx];
+      el.textContent = currPlayer; el.classList.add('disabled');
+      turns++;
+      currPlayer = (currPlayer===PLAYER_X)?PLAYER_O:PLAYER_X;
+      updateStatus();
+      checkWinner();
+    }
+
+    function idxToR(i){ return Math.floor(i/3); }
+    function idxToC(i){ return i%3; }
+
+    autoBtn.addEventListener('click', ()=>{
+      // run a few moves with a short delay so user can watch
+      if(gameOver) return;
+      let steps = 1;
+      const iv = setInterval(()=>{
+        autoPlay(); steps--; if(steps<=0) clearInterval(iv);
+      }, 220);
+    });
+
+    // initialize
+    buildBoard();
+  </script>
+</body>
+</html>
